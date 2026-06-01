@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- This file installs a shelf tool that opens the Motion Manager.
+       Place it in $HOUDINI_USER_PREF_DIR/toolbar/ . -->
+  <toolshelf name="motion_manager" label="Motion">
+    <memberTool name="motion_manager_open"/>
+  </toolshelf>
+
+  <tool name="motion_manager_open" label="Motion Manager" icon="MISC_python">
+    <helpText><![CDATA[Open the Motion Manager panel for copying easing and applying motion presets.]]></helpText>
+    <script scriptType="python"><![CDATA[
+import motion_manager.panel as mm_panel
+mm_panel.show_window()
+]]></script>
+  </tool>
+</shelfDocument>

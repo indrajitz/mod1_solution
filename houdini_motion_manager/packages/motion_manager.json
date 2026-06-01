@@ -1,0 +1,16 @@
+{
+    "comment": "Houdini package for the Motion Manager tool. Copy this file into $HOUDINI_USER_PREF_DIR/packages/ and set MOTION_MANAGER_ROOT to the absolute path of the 'houdini_motion_manager' folder (the folder that contains the 'motion_manager' python module, 'python_panels' and 'toolbar').",
+    "enable": true,
+    "env": [
+        {
+            "MOTION_MANAGER_ROOT": "/path/to/houdini_motion_manager"
+        },
+        {
+            "PYTHONPATH": {
+                "value": "$MOTION_MANAGER_ROOT",
+                "method": "prepend"
+            }
+        }
+    ],
+    "path": "$MOTION_MANAGER_ROOT"
+}

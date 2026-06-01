@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pythonPanelDocument>
+  <!-- This is an internal Houdini Python Panel definition. Place this file in
+       $HOUDINI_USER_PREF_DIR/python_panels/ and add the package so the
+       'motion_manager' module is importable. -->
+  <interface name="motion_manager" label="Motion Manager" icon="MISC_python" showNetworkNavigationBar="false" help_url="">
+    <script><![CDATA[
+import motion_manager.panel as mm_panel
+
+
+def onCreateInterface():
+    """Called by Houdini when the Python Panel is opened."""
+    return mm_panel.create_interface()
+]]></script>
+    <includeInToolbarMenu menu_position="300" create_separator="false"/>
+    <help><![CDATA[
+Motion Manager
+==============
+
+Copy "easy curves" between channels and apply reusable motion / easing
+presets.
+
+* Copy Easing  - grab the easing from the active scoped channel.
+* Paste Easing - stamp it onto the keyframes of the other scoped channels.
+* Motion Presets - one-click library of built-in and saved easings.
+
+Scope channels in the Animation Editor (or select keyframed nodes) before
+using the buttons.
+]]></help>
+  </interface>
+</pythonPanelDocument>
