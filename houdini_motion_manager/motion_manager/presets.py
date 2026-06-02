@@ -1,26 +1,43 @@
 """Motion / easing preset library for the Motion Manager.
 
-A *preset* is a small JSON document describing the easing of a curve segment
-or a whole keyframe clip.  Two kinds are supported:
+The preset model matches the Cinema 4D *Motion Manager* so presets are portable
+between the two.  A preset describes a normalized cubic-bezier easing on a unit
+square via two ``knots``::
 
+    {
+        'name': 'Sine',
+        'type': 'bezier',
+        'knots': [
+            {'x': 0, 'y': 0, 'lx': 0,     'ly': 0,    'rx': 0.37, 'ry': 0.0},
+            {'x': 1, 'y': 1, 'lx': -0.37, 'ly': -0.0, 'rx': 0,    'ry': 0},
+        ],
+        'favorite': False,
+    }
+
+``lx/ly`` and ``rx/ry`` are the left/right tangent-handle offsets expressed as
+fractions of the segment's width (time) and height (value).  When applied to a
+real Houdini segment the handles are re-fitted to that segment - see
+:func:`core.apply_bezier_easing`.
+
+Three preset ``type`` s are supported:
+
+``bezier``
+    The C4D-style normalized easing above (the default / portable kind).
 ``ease``
-    A two-sided segment easing (an "easy curve"): ``out`` shapes the leaving
-    tangent of a key and ``in`` shapes the arriving tangent of the next key.
-    This is the bread-and-butter AE-style easing preset.
-
+    A lower-level slope/accel easing (``out`` / ``in`` dicts) used internally.
 ``clip``
-    A full sequence of keyframes captured from a channel (see
-    :func:`core.capture_channel`).  Lets you store and re-stamp a complete
-    motion such as a bounce or an overshoot.
+    A full, time-normalised keyframe sequence captured from a channel.
 
-Built-in presets are defined in :data:`BUILTIN_PRESETS`.  User presets live as
-``*.json`` files in the user preset directory, which defaults to
-``$HOUDINI_USER_PREF_DIR/motion_manager_presets`` and can be overridden with
-the ``MOTION_MANAGER_PRESETS`` environment variable.
+Built-in presets are the classic Penner easing set (Sine, Quad, Cubic, Quart,
+Quint, Expo, Circ - each In/Out/In-Out - plus Linear), with the exact handle
+values shipped by the Cinema 4D tool.  User presets live as ``*.json`` files in
+``$HOUDINI_USER_PREF_DIR/motion_manager_presets`` (override with the
+``MOTION_MANAGER_PRESETS`` environment variable).
 """
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -34,83 +51,91 @@ except ImportError:  # pragma: no cover
 from . import core
 
 
-PRESET_VERSION = 1
+PRESET_VERSION = 2
 
 
 # ---------------------------------------------------------------------------
-# Built-in presets
+# Built-in presets - the Cinema 4D Motion Manager default library (Penner set).
+# Stored in the native C4D text format and parsed below, which guarantees the
+# values stay identical to the C4D tool and that round-tripping works.
 # ---------------------------------------------------------------------------
-# Slope is expressed in value-units / frame.  A slope of 0 produces a flat
-# (horizontal) tangent - the classic "ease".  ``accel`` controls how far the
-# tangent handle reaches and therefore the "influence" of the ease.
-def _ease(name: str, out: Dict[str, Any], in_: Dict[str, Any], desc: str = ""):
-    return {
-        "name": name,
-        "type": "ease",
-        "version": PRESET_VERSION,
-        "builtin": True,
-        "description": desc,
-        "out": out,
-        "in": in_,
-    }
+_C4D_DEFAULT_PRESETS = """
+{'name': 'Sine',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.37, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.37, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Sine In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.12, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.61, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Sine Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.61, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.12, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quad',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.45, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.45, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quad In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.11, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.50, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quad Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.50, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.11, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Cubic',       'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.65, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.65, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Cubic In',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.32, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.33, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Cubic Out',   'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.33, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.32, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quart',       'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.76, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.76, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quart In',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.50, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.25, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quart Out',   'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.25, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.50, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quint',       'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.83, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.83, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quint In',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.64, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.22, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quint Out',   'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.22, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.64, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Expo',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.87, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.87, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Expo In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.70, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.16, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Expo Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.16, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.70, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Circ',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.85, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.85, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Circ In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.55, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.00, 'ly': -0.55, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Circ Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.00, 'ry': 0.55}, {'x': 1, 'y': 1, 'lx': -0.55, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Linear',      'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.00, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.00, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+"""
 
 
-_FLAT = {"expression": "bezier()", "slope": 0.0, "slope_auto": False}
-_SOFT = {"accel": 0.20}
-_MED = {"accel": 0.33}
-_STRONG = {"accel": 0.55}
+# ---------------------------------------------------------------------------
+# Cinema 4D text format <-> preset dicts
+# ---------------------------------------------------------------------------
+def parse_c4d_presets(text: str) -> List[Dict[str, Any]]:
+    """Parse Cinema 4D ``presets.txt`` content into a list of preset dicts.
+
+    Each non-empty line is a Python-literal dict ``{'name':..., 'knots':[...],
+    'favorite':...}``.  Malformed lines are skipped.  ``type`` is set to
+    ``bezier`` and ``favorite`` is coerced to a real bool.
+    """
+    presets: List[Dict[str, Any]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = ast.literal_eval(line)
+        except (ValueError, SyntaxError):
+            continue
+        if not isinstance(data, dict) or "knots" not in data:
+            continue
+        data["type"] = "bezier"
+        data["favorite"] = bool(data.get("favorite"))
+        presets.append(data)
+    return presets
 
 
-BUILTIN_PRESETS: List[Dict[str, Any]] = [
-    _ease(
-        "Linear",
-        {"expression": "linear()", "slope_auto": False},
-        {"expression": "linear()", "slope_auto": False},
-        "Constant velocity, no easing.",
-    ),
-    _ease(
-        "Hold",
-        {"expression": "constant()"},
-        {"expression": "constant()"},
-        "Stepped / held value until the next key.",
-    ),
-    _ease(
-        "Smooth (Auto)",
-        {"expression": "bezier()", "slope_auto": True},
-        {"expression": "bezier()", "in_slope_auto": True},
-        "Houdini's automatic smooth tangents.",
-    ),
-    _ease(
-        "Ease In",
-        {"expression": "bezier()", "slope_auto": True},
-        dict(_FLAT, **_MED),
-        "Accelerates out, eases into the next key.",
-    ),
-    _ease(
-        "Ease Out",
-        dict(_FLAT, **_MED),
-        {"expression": "bezier()", "in_slope_auto": True},
-        "Eases away from the key, then continues.",
-    ),
-    _ease(
-        "Ease In-Out",
-        dict(_FLAT, **_MED),
-        dict({"expression": "bezier()", "in_slope": 0.0, "in_slope_auto": False}, **{"in_accel": _MED["accel"]}),
-        "Soft on both ends - the default 'easy ease'.",
-    ),
-    _ease(
-        "Soft Ease",
-        dict(_FLAT, **_SOFT),
-        dict({"expression": "bezier()", "in_slope": 0.0, "in_slope_auto": False}, **{"in_accel": _SOFT["accel"]}),
-        "Gentle ease with low influence.",
-    ),
-    _ease(
-        "Strong Ease",
-        dict(_FLAT, **_STRONG),
-        dict({"expression": "bezier()", "in_slope": 0.0, "in_slope_auto": False}, **{"in_accel": _STRONG["accel"]}),
-        "Heavy ease with high influence / slow middle.",
-    ),
-]
+def format_c4d_presets(presets: List[Dict[str, Any]]) -> str:
+    """Serialise bezier presets back to the Cinema 4D ``presets.txt`` format."""
+    lines = []
+    for preset in presets:
+        if preset.get("type", "bezier") != "bezier":
+            continue
+        out = {
+            "name": preset["name"],
+            "knots": preset["knots"],
+            "favorite": bool(preset.get("favorite")),
+        }
+        lines.append(repr(out))
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def _load_builtins() -> List[Dict[str, Any]]:
+    presets = parse_c4d_presets(_C4D_DEFAULT_PRESETS)
+    for preset in presets:
+        preset["version"] = PRESET_VERSION
+        preset["builtin"] = True
+    return presets
+
+
+BUILTIN_PRESETS: List[Dict[str, Any]] = _load_builtins()
 
 
 def _slug(name: str) -> str:
@@ -162,6 +187,7 @@ class PresetLibrary:
             except (OSError, ValueError):
                 continue
             data.setdefault("name", os.path.splitext(fname)[0])
+            data.setdefault("type", "bezier")
             data["builtin"] = False
             data["_path"] = path
             presets.append(data)
@@ -169,6 +195,9 @@ class PresetLibrary:
 
     def all_presets(self) -> List[Dict[str, Any]]:
         return list(BUILTIN_PRESETS) + self.user_presets()
+
+    def favorites(self) -> List[Dict[str, Any]]:
+        return [p for p in self.all_presets() if p.get("favorite")]
 
     def find(self, name: str) -> Optional[Dict[str, Any]]:
         for preset in self.all_presets():
@@ -204,29 +233,84 @@ class PresetLibrary:
         except OSError:
             return False
 
+    def set_favorite(self, name: str, favorite: bool = True) -> bool:
+        """Toggle the favorite flag on a *user* preset (built-ins are fixed)."""
+        preset = self.find(name)
+        if not preset or preset.get("builtin"):
+            return False
+        preset = dict(preset)
+        preset["favorite"] = bool(favorite)
+        self.save(preset)
+        return True
+
+    # -- Cinema 4D interop ---------------------------------------------
+    def import_c4d_file(self, path: str, overwrite: bool = True) -> int:
+        """Import a Cinema 4D ``presets.txt`` file; return number imported."""
+        with open(path, "r") as fh:
+            presets = parse_c4d_presets(fh.read())
+        count = 0
+        for preset in presets:
+            preset["version"] = PRESET_VERSION
+            try:
+                self.save(preset, overwrite=overwrite)
+                count += 1
+            except core.MotionManagerError:
+                continue
+        return count
+
+    def export_c4d_file(self, path: str, include_builtins: bool = True) -> int:
+        """Export bezier presets to a Cinema 4D compatible ``presets.txt``.
+
+        Returns the number of presets written.
+        """
+        source = self.all_presets() if include_builtins else self.user_presets()
+        beziers = [p for p in source if p.get("type", "bezier") == "bezier"]
+        with open(path, "w") as fh:
+            fh.write(format_c4d_presets(beziers))
+        return len(beziers)
+
     # -- creating presets from the scene -------------------------------
     @staticmethod
-    def ease_from_parm(parm, name: str, description: str = "") -> Dict[str, Any]:
-        """Build an ``ease`` preset from the first segment of ``parm``.
+    def bezier_from_parm(
+        parm, name: str, favorite: bool = False
+    ) -> Dict[str, Any]:
+        """Capture a normalized bezier preset from ``parm``'s first segment.
 
-        Reads the out-tangent of the first key and the in-tangent of the
-        second key - exactly the data that defines a reusable easy curve.
+        Reads the out-handle of the first key and the in-handle of the second
+        key and expresses them as fractions of the segment, producing a preset
+        in the portable C4D format.
         """
         core._require_hou()
         keys = list(parm.keyframes())
         if len(keys) < 2:
             raise core.MotionManagerError(
-                "Select a channel with at least two keyframes to capture an ease."
+                "Select a channel with at least two keyframes to capture a curve."
             )
-        first = core.capture_keyframe(keys[0], include_value=False)
-        second = core.capture_keyframe(keys[1], include_value=False)
+        a, b = keys[0], keys[1]
+        fa, va = a.frame(), a.value()
+        fb, vb = b.frame(), b.value()
+        dx = (fb - fa) or 1.0
+        dy = (vb - va) or 1.0
+
+        out_accel = core._safe_call(a, "accel") or 0.0
+        out_slope = core._safe_call(a, "slope") or 0.0
+        in_accel = core._safe_call(b, "inAccel") or 0.0
+        in_slope = core._safe_call(b, "inSlope") or 0.0
+
+        rx = out_accel / dx
+        ry = (out_slope * out_accel) / dy
+        lx = -in_accel / dx
+        ly = -(in_slope * in_accel) / dy
+
         return {
             "name": name,
-            "type": "ease",
+            "type": "bezier",
             "version": PRESET_VERSION,
-            "description": description,
-            "out": core._out_side(first),
-            "in": core._in_side(second),
+            "favorite": bool(favorite),
+            "knots": [
+                {"x": 0, "y": 0, "lx": 0, "ly": 0, "rx": rx, "ry": ry},
+                {"x": 1, "y": 1, "lx": lx, "ly": ly, "rx": 0, "ry": 0},
+            ],
         }
 
     @staticmethod
@@ -246,9 +330,18 @@ class PresetLibrary:
         Returns the number of parameters affected.
         """
         validate_preset(preset)
-        ptype = preset.get("type", "ease")
+        ptype = preset.get("type", "bezier")
         affected = 0
-        if ptype == "ease":
+        if ptype == "bezier":
+            knots = preset["knots"]
+            knot0, knot1 = knots[0], knots[-1]
+            for parm in parms:
+                try:
+                    core.apply_bezier_easing(parm, knot0, knot1, frame_range)
+                    affected += 1
+                except core.MotionManagerError:
+                    continue
+        elif ptype == "ease":
             out_data = preset.get("out", {})
             in_data = preset.get("in", {})
             for parm in parms:
@@ -278,8 +371,17 @@ def validate_preset(preset: Dict[str, Any]) -> None:
         raise core.MotionManagerError("Preset must be a dictionary.")
     if not preset.get("name"):
         raise core.MotionManagerError("Preset is missing a 'name'.")
-    ptype = preset.get("type", "ease")
-    if ptype == "ease":
+    ptype = preset.get("type", "bezier")
+    if ptype == "bezier":
+        knots = preset.get("knots")
+        if not isinstance(knots, list) or len(knots) < 2:
+            raise core.MotionManagerError(
+                "A 'bezier' preset needs a 'knots' list with two entries."
+            )
+        for knot in (knots[0], knots[-1]):
+            if not isinstance(knot, dict):
+                raise core.MotionManagerError("Each knot must be a dictionary.")
+    elif ptype == "ease":
         if not isinstance(preset.get("out", {}), dict) or not isinstance(
             preset.get("in", {}), dict
         ):

@@ -111,26 +111,45 @@ class MotionManagerWidget(QtWidgets.QWidget):
         v.addLayout(row1)
 
         row2 = QtWidgets.QHBoxLayout()
-        self.save_ease_btn = QtWidgets.QPushButton("Save Ease…")
-        self.save_ease_btn.setToolTip(
-            "Save the easing of the active channel's first segment as a preset."
+        self.save_curve_btn = QtWidgets.QPushButton("Save Curve…")
+        self.save_curve_btn.setToolTip(
+            "Save the active channel's first-segment easing as a reusable "
+            "(C4D-compatible) bezier preset."
         )
         self.save_clip_btn = QtWidgets.QPushButton("Save Clip…")
         self.save_clip_btn.setToolTip(
             "Save the full keyframe sequence of the active channel as a preset."
         )
+        self.fav_btn = QtWidgets.QPushButton("☆ Favorite")
+        self.fav_btn.setToolTip("Toggle favorite on the selected user preset.")
         self.delete_btn = QtWidgets.QPushButton("Delete")
-        self.save_ease_btn.clicked.connect(self.on_save_ease)
+        self.save_curve_btn.clicked.connect(self.on_save_curve)
         self.save_clip_btn.clicked.connect(self.on_save_clip)
+        self.fav_btn.clicked.connect(self.on_toggle_favorite)
         self.delete_btn.clicked.connect(self.on_delete)
-        row2.addWidget(self.save_ease_btn)
+        row2.addWidget(self.save_curve_btn)
         row2.addWidget(self.save_clip_btn)
+        row2.addWidget(self.fav_btn)
         row2.addWidget(self.delete_btn)
         v.addLayout(row2)
 
+        row3 = QtWidgets.QHBoxLayout()
+        self.import_btn = QtWidgets.QPushButton("Import C4D…")
+        self.import_btn.setToolTip(
+            "Import a Cinema 4D Motion Manager presets.txt file."
+        )
+        self.export_btn = QtWidgets.QPushButton("Export C4D…")
+        self.export_btn.setToolTip(
+            "Export the library to a Cinema 4D compatible presets.txt file."
+        )
         refresh = QtWidgets.QPushButton("Refresh")
+        self.import_btn.clicked.connect(self.on_import_c4d)
+        self.export_btn.clicked.connect(self.on_export_c4d)
         refresh.clicked.connect(self.refresh_presets)
-        v.addWidget(refresh)
+        row3.addWidget(self.import_btn)
+        row3.addWidget(self.export_btn)
+        row3.addWidget(refresh)
+        v.addLayout(row3)
         return group
 
     # -- helpers --------------------------------------------------------
@@ -165,11 +184,18 @@ class MotionManagerWidget(QtWidgets.QWidget):
     # -- preset list ----------------------------------------------------
     def refresh_presets(self):
         self.preset_list.clear()
-        for preset in self.library.all_presets():
+        # Favorites first, then everything else, each group alphabetical-ish.
+        presets_all = self.library.all_presets()
+        favs = [p for p in presets_all if p.get("favorite")]
+        rest = [p for p in presets_all if not p.get("favorite")]
+        for preset in favs + rest:
             label = preset.get("name", "?")
+            star = "★ " if preset.get("favorite") else ""
             tag = "  ·  builtin" if preset.get("builtin") else ""
-            ptype = preset.get("type", "ease")
-            item = QtWidgets.QListWidgetItem("%s   [%s]%s" % (label, ptype, tag))
+            ptype = preset.get("type", "bezier")
+            item = QtWidgets.QListWidgetItem(
+                "%s%s   [%s]%s" % (star, label, ptype, tag)
+            )
             item.setData(QtCore.Qt.UserRole, preset)
             self.preset_list.addItem(item)
         self._set_status("Loaded %d preset(s)." % self.preset_list.count())
@@ -222,16 +248,63 @@ class MotionManagerWidget(QtWidgets.QWidget):
             return None
         return name.strip()
 
-    def on_save_ease(self):
-        name = self._ask_name("Save Ease Preset")
+    def on_save_curve(self):
+        name = self._ask_name("Save Curve Preset")
         if not name:
             return
         try:
             parm = self._active_parm()
-            preset = presets.PresetLibrary.ease_from_parm(parm, name)
+            preset = presets.PresetLibrary.bezier_from_parm(parm, name)
             self.library.save(preset)
             self.refresh_presets()
-            self._set_status("Saved ease preset '%s'." % name)
+            self._set_status("Saved curve preset '%s'." % name)
+        except Exception as exc:  # noqa: BLE001
+            self._report_error(exc)
+
+    def on_toggle_favorite(self):
+        preset = self._current_preset()
+        if not preset:
+            self._set_status("Select a preset first.", error=True)
+            return
+        if preset.get("builtin"):
+            self._set_status(
+                "Built-in presets can't be favorited - save your own copy.",
+                error=True,
+            )
+            return
+        new_state = not preset.get("favorite")
+        if self.library.set_favorite(preset.get("name", ""), new_state):
+            self.refresh_presets()
+            self._set_status(
+                "%s '%s'." % ("Favorited" if new_state else "Unfavorited",
+                              preset.get("name"))
+            )
+        else:
+            self._set_status("Could not update favorite.", error=True)
+
+    def on_import_c4d(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Import Cinema 4D presets", "", "Presets (*.txt);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            n = self.library.import_c4d_file(path)
+            self.refresh_presets()
+            self._set_status("Imported %d preset(s) from Cinema 4D." % n)
+        except Exception as exc:  # noqa: BLE001
+            self._report_error(exc)
+
+    def on_export_c4d(self):
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Export Cinema 4D presets", "presets.txt",
+            "Presets (*.txt);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            n = self.library.export_c4d_file(path)
+            self._set_status("Exported %d preset(s) to '%s'." % (n, path))
         except Exception as exc:  # noqa: BLE001
             self._report_error(exc)
 

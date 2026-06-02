@@ -235,6 +235,116 @@ def paste_easing(parms: Sequence, clip: Optional[Dict[str, Any]] = None) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Normalized cubic-bezier easing (Cinema 4D Motion Manager model)
+# ---------------------------------------------------------------------------
+# A preset's easing is described as a unit-square curve: two knots at (0,0) and
+# (1,1), each with handle offsets expressed as fractions of the segment's width
+# (time) and height (value).  Applying it to a real segment scales those
+# fractions by the segment's frame-delta (dx) and value-delta (dy) and converts
+# the resulting handle vector into a Houdini keyframe slope + accel.
+#
+# Houdini's bezier handle endpoint, relative to a key, is
+#   (accel_frames, slope * accel_frames)
+# so a target handle vector of (hx*dx, hy*dy) gives
+#   accel_frames = hx*dx   and   slope = (hy*dy) / (hx*dx).
+# A near-zero hx (a vertical handle, e.g. the Circ presets) can't be exactly
+# represented - Houdini has no infinite tangent - so we clamp hx to MIN_HANDLE_X
+# which keeps the handle's height exact and only approximates its steepness.
+
+MIN_HANDLE_X = 0.02
+
+
+def _handle_to_tangent(hx: float, hy: float, dx: float, dy: float):
+    """Convert a normalized handle offset to (accel_frames, slope)."""
+    hx = abs(float(hx))
+    dx = abs(float(dx))
+    accel = max(hx, MIN_HANDLE_X) * dx
+    handle_y = float(hy) * float(dy)
+    slope = handle_y / accel if accel else 0.0
+    return accel, slope
+
+
+def apply_bezier_easing(
+    parm,
+    knot0: Dict[str, Any],
+    knot1: Dict[str, Any],
+    frame_range: Optional[Sequence[float]] = None,
+) -> int:
+    """Apply a normalized 2-knot bezier ease to every segment of ``parm``.
+
+    ``knot0`` supplies the out-handle (rx, ry) used on the leaving side of each
+    key; ``knot1`` supplies the in-handle (lx, ly) used on the arriving side of
+    the next key.  The shape is re-fitted to each segment's own frame/value
+    range, so the same preset reads identically regardless of timing or scale.
+
+    Returns the number of keyframes touched.
+    """
+    _require_hou()
+    keys = _keyframes(parm)
+    if len(keys) < 2:
+        raise MotionManagerError(
+            "Need at least two keyframes to apply a bezier easing."
+        )
+
+    if frame_range is not None:
+        lo, hi = frame_range
+        keys = [k for k in keys if lo <= (_safe_call(k, "frame") or 0.0) <= hi]
+        if len(keys) < 2:
+            raise MotionManagerError(
+                "Less than two keyframes fall inside the given range."
+            )
+
+    rx, ry = knot0.get("rx", 0.0), knot0.get("ry", 0.0)
+    lx, ly = knot1.get("lx", 0.0), knot1.get("ly", 0.0)
+
+    touched = 0
+    for index, kf in enumerate(keys):
+        frame = _safe_call(kf, "frame") or 0.0
+        value = _safe_call(kf, "value") or 0.0
+
+        # Out side -> shaped by the next segment.
+        if index < len(keys) - 1:
+            nxt = keys[index + 1]
+            dx = (_safe_call(nxt, "frame") or 0.0) - frame
+            dy = (_safe_call(nxt, "value") or 0.0) - value
+            if dx:
+                accel, slope = _handle_to_tangent(rx, ry, dx, dy)
+                apply_keyframe(
+                    kf,
+                    {
+                        "expression": "bezier()",
+                        "slope_auto": False,
+                        "slope": slope,
+                        "accel": accel,
+                    },
+                    set_value=False,
+                )
+
+        # In side -> shaped by the previous segment.
+        if index > 0:
+            prv = keys[index - 1]
+            dx = frame - (_safe_call(prv, "frame") or 0.0)
+            dy = value - (_safe_call(prv, "value") or 0.0)
+            if dx:
+                accel, slope = _handle_to_tangent(lx, ly, dx, dy)
+                apply_keyframe(
+                    kf,
+                    {
+                        "expression": "bezier()",
+                        "in_slope_auto": False,
+                        "in_slope": slope,
+                        "in_accel": accel,
+                    },
+                    set_value=False,
+                )
+
+        parm.setKeyframe(kf)
+        touched += 1
+
+    return touched
+
+
+# ---------------------------------------------------------------------------
 # Applying a 2-point easing preset across a selection of segments
 # ---------------------------------------------------------------------------
 def apply_segment_easing(

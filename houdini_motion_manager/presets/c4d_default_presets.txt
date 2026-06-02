@@ -1,0 +1,22 @@
+{'name': 'Sine',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.37, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.37, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Sine In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.12, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.61, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Sine Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.61, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.12, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quad',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.45, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.45, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quad In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.11, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.50, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quad Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.50, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.11, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Cubic',       'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.65, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.65, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Cubic In',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.32, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.33, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Cubic Out',   'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.33, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.32, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quart',       'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.76, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.76, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quart In',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.50, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.25, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quart Out',   'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.25, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.50, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quint',       'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.83, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.83, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quint In',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.64, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.22, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Quint Out',   'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.22, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.64, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Expo',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.87, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.87, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Expo In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.70, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.16, 'ly': -1.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Expo Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.16, 'ry': 1.00}, {'x': 1, 'y': 1, 'lx': -0.70, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Circ',        'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.85, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.85, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Circ In',     'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.55, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.00, 'ly': -0.55, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Circ Out',    'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.00, 'ry': 0.55}, {'x': 1, 'y': 1, 'lx': -0.55, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
+{'name': 'Linear',      'knots': [{'x': 0, 'y': 0, 'lx': 0, 'ly': 0, 'rx': 0.00, 'ry': 0.00}, {'x': 1, 'y': 1, 'lx': -0.00, 'ly': -0.00, 'rx': 0, 'ry': 0}], 'favorite': False}
