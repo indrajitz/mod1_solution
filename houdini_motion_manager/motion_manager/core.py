@@ -270,13 +270,23 @@ def bezier_control_points(knots: Sequence[Dict[str, Any]]):
 
 
 def _handle_to_tangent(hx: float, hy: float, dx: float, dy: float):
-    """Convert a normalized handle offset to (accel_frames, slope)."""
+    """Convert a normalized handle offset to (accel_ratio, slope).
+
+    ``accel_ratio`` is the handle's length along time expressed as a *fraction*
+    of the segment duration (Houdini's ``interpretAccelAsRatio`` mode), which
+    keeps the result independent of the scene's frame rate and segment length.
+    ``slope`` is the tangent in value-units per frame.
+
+    A near-zero ``hx`` (a vertical handle, e.g. the Circ presets) is clamped to
+    ``MIN_HANDLE_X`` because Houdini has no infinite tangent.
+    """
     hx = abs(float(hx))
     dx = abs(float(dx))
-    accel = max(hx, MIN_HANDLE_X) * dx
+    accel_ratio = max(hx, MIN_HANDLE_X)
+    handle_x_frames = accel_ratio * dx
     handle_y = float(hy) * float(dy)
-    slope = handle_y / accel if accel else 0.0
-    return accel, slope
+    slope = handle_y / handle_x_frames if handle_x_frames else 0.0
+    return accel_ratio, slope
 
 
 def apply_bezier_easing(
@@ -317,6 +327,19 @@ def apply_bezier_easing(
         frame = _safe_call(kf, "frame") or 0.0
         value = _safe_call(kf, "value") or 0.0
 
+        # Every key we touch must have automatic and tied tangents turned off,
+        # otherwise Houdini recomputes our explicit slope/accel back to its
+        # smooth defaults (this is what made the applied curve differ from the
+        # preview).  Accel is interpreted as a ratio of the segment duration.
+        data: Dict[str, Any] = {
+            "expression": "bezier()",
+            "slope_auto": False,
+            "in_slope_auto": False,
+            "slope_tied": False,
+            "accel_tied": False,
+            "accel_as_ratio": True,
+        }
+
         # Out side -> shaped by the next segment.
         if index < len(keys) - 1:
             nxt = keys[index + 1]
@@ -324,16 +347,8 @@ def apply_bezier_easing(
             dy = (_safe_call(nxt, "value") or 0.0) - value
             if dx:
                 accel, slope = _handle_to_tangent(rx, ry, dx, dy)
-                apply_keyframe(
-                    kf,
-                    {
-                        "expression": "bezier()",
-                        "slope_auto": False,
-                        "slope": slope,
-                        "accel": accel,
-                    },
-                    set_value=False,
-                )
+                data["slope"] = slope
+                data["accel"] = accel
 
         # In side -> shaped by the previous segment.
         if index > 0:
@@ -342,17 +357,10 @@ def apply_bezier_easing(
             dy = value - (_safe_call(prv, "value") or 0.0)
             if dx:
                 accel, slope = _handle_to_tangent(lx, ly, dx, dy)
-                apply_keyframe(
-                    kf,
-                    {
-                        "expression": "bezier()",
-                        "in_slope_auto": False,
-                        "in_slope": slope,
-                        "in_accel": accel,
-                    },
-                    set_value=False,
-                )
+                data["in_slope"] = slope
+                data["in_accel"] = accel
 
+        apply_keyframe(kf, data, set_value=False)
         parm.setKeyframe(kf)
         touched += 1
 

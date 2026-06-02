@@ -187,9 +187,10 @@ class TestControlPoints(unittest.TestCase):
 class TestTangentMath(unittest.TestCase):
     def test_flat_handle_gives_zero_slope(self):
         # Sine knot0 out-handle: rx=0.37, ry=0 over a 24f/100v segment.
+        # accel is now a ratio of the segment duration.
         accel, slope = core._handle_to_tangent(0.37, 0.0, 24.0, 100.0)
         self.assertAlmostEqual(slope, 0.0)
-        self.assertAlmostEqual(accel, 0.37 * 24.0)
+        self.assertAlmostEqual(accel, 0.37)
 
     def test_steep_handle_gives_large_slope(self):
         # Expo-In arrival handle ly=-1.0 over the segment -> steep.
@@ -197,11 +198,19 @@ class TestTangentMath(unittest.TestCase):
         self.assertLess(slope, -10.0)
 
     def test_vertical_handle_is_clamped(self):
-        # Circ-Out out-handle rx=0 -> clamped to MIN_HANDLE_X, finite slope.
+        # Circ-Out out-handle rx=0 -> clamped to MIN_HANDLE_X ratio, finite slope.
         accel, slope = core._handle_to_tangent(0.0, 0.55, 24.0, 100.0)
-        self.assertAlmostEqual(accel, core.MIN_HANDLE_X * 24.0)
+        self.assertAlmostEqual(accel, core.MIN_HANDLE_X)
         self.assertTrue(abs(slope) < float("inf"))
         self.assertGreater(slope, 0.0)
+
+    def test_slope_is_framerate_independent(self):
+        # Same handle, different segment lengths -> accel ratio unchanged,
+        # slope scales with value/frame as expected.
+        a1, s1 = core._handle_to_tangent(0.5, 1.0, 24.0, 100.0)
+        a2, s2 = core._handle_to_tangent(0.5, 1.0, 48.0, 200.0)
+        self.assertAlmostEqual(a1, a2)            # ratio independent of scale
+        self.assertAlmostEqual(s1, s2)            # dy/dx identical here
 
 
 if __name__ == "__main__":

@@ -292,10 +292,16 @@ class PresetLibrary:
         dx = (fb - fa) or 1.0
         dy = (vb - va) or 1.0
 
-        out_accel = core._safe_call(a, "accel") or 0.0
         out_slope = core._safe_call(a, "slope") or 0.0
-        in_accel = core._safe_call(b, "inAccel") or 0.0
         in_slope = core._safe_call(b, "inSlope") or 0.0
+        # Accel may be stored as an absolute (frames) value or as a ratio of the
+        # segment duration; normalise both to a handle width in frames.
+        out_accel = core._safe_call(a, "accel") or 0.0
+        if core._safe_call(a, "interpretAccelAsRatio"):
+            out_accel *= abs(dx)
+        in_accel = core._safe_call(b, "inAccel") or 0.0
+        if core._safe_call(b, "interpretAccelAsRatio"):
+            in_accel *= abs(dx)
 
         rx = out_accel / dx
         ry = (out_slope * out_accel) / dy
