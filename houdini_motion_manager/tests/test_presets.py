@@ -164,6 +164,26 @@ class TestLibraryRoundTrip(unittest.TestCase):
         self.assertEqual(data["version"], presets.PRESET_VERSION)
 
 
+class TestControlPoints(unittest.TestCase):
+    def test_control_points_from_handles(self):
+        knots = [
+            {"x": 0, "y": 0, "lx": 0, "ly": 0, "rx": 0.37, "ry": 0.0},
+            {"x": 1, "y": 1, "lx": -0.37, "ly": -0.0, "rx": 0, "ry": 0},
+        ]
+        p0, p1, p2, p3 = core.bezier_control_points(knots)
+        self.assertEqual(p0, (0.0, 0.0))
+        self.assertEqual(p3, (1.0, 1.0))
+        self.assertAlmostEqual(p1[0], 0.37)
+        self.assertAlmostEqual(p1[1], 0.0)
+        self.assertAlmostEqual(p2[0], 0.63)  # 1 + (-0.37)
+        self.assertAlmostEqual(p2[1], 1.0)
+
+    def test_every_builtin_renders_control_points(self):
+        for preset in presets.BUILTIN_PRESETS:
+            pts = core.bezier_control_points(preset["knots"])
+            self.assertEqual(len(pts), 4)
+
+
 class TestTangentMath(unittest.TestCase):
     def test_flat_handle_gives_zero_slope(self):
         # Sine knot0 out-handle: rx=0.37, ry=0 over a 24f/100v segment.

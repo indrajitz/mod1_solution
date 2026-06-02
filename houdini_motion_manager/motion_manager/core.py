@@ -254,6 +254,21 @@ def paste_easing(parms: Sequence, clip: Optional[Dict[str, Any]] = None) -> int:
 MIN_HANDLE_X = 0.02
 
 
+def bezier_control_points(knots: Sequence[Dict[str, Any]]):
+    """Return the four cubic-bezier control points for a 2-knot preset.
+
+    ``P0`` = first knot, ``P1`` = first knot + its right handle,
+    ``P2`` = last knot + its left handle, ``P3`` = last knot.  Used both to
+    apply the easing and to draw its preview, so the math stays in one place.
+    """
+    k0, k1 = knots[0], knots[-1]
+    p0 = (float(k0.get("x", 0.0)), float(k0.get("y", 0.0)))
+    p3 = (float(k1.get("x", 1.0)), float(k1.get("y", 1.0)))
+    p1 = (p0[0] + float(k0.get("rx", 0.0)), p0[1] + float(k0.get("ry", 0.0)))
+    p2 = (p3[0] + float(k1.get("lx", 0.0)), p3[1] + float(k1.get("ly", 0.0)))
+    return p0, p1, p2, p3
+
+
 def _handle_to_tangent(hx: float, hy: float, dx: float, dy: float):
     """Convert a normalized handle offset to (accel_frames, slope)."""
     hx = abs(float(hx))

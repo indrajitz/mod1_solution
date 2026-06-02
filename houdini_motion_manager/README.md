@@ -22,6 +22,8 @@ with the Cinema 4D Motion Manager** (import/export its `presets.txt`).
   - **Your own:** save a channel's easing as a portable bezier curve
     (*Save Curve*) or a whole keyframe sequence such as a bounce/overshoot
     (*Save Clip*).
+- **Curve preview** — the selected preset's easing curve is drawn live (curve,
+  tangent handles and a linear reference), so you can pick by shape, not name.
 - **Favorites** — star the presets you use most; they sort to the top.
 - **Cinema 4D import / export** — read and write the C4D `presets.txt` format,
   so presets move freely between C4D and Houdini.
@@ -178,8 +180,9 @@ compatible across Houdini versions.
 ```
 houdini_motion_manager/
 ├── motion_manager/          # Python package
-│   ├── core.py              # keyframe capture / apply, copy / paste
-│   ├── presets.py           # preset library + built-in eases
+│   ├── core.py              # keyframe capture / apply, copy / paste, bezier math
+│   ├── presets.py           # preset library, built-ins, C4D import/export
+│   ├── curve_widget.py      # PySide curve-preview widget
 │   └── panel.py             # PySide UI (Python Panel)
 ├── python_panels/
 │   └── motion_manager.pypanel

@@ -27,6 +27,7 @@ except ImportError:  # pragma: no cover
     hou = None  # type: ignore
 
 from . import core, presets
+from .curve_widget import CurvePreview
 
 
 def _selected_parms():
@@ -98,6 +99,10 @@ class MotionManagerWidget(QtWidgets.QWidget):
         self.preset_list.itemDoubleClicked.connect(lambda _i: self.on_apply())
         self.preset_list.currentItemChanged.connect(self._on_select_preset)
         v.addWidget(self.preset_list, 1)
+
+        # Visual preview of the selected preset's easing curve.
+        self.curve_preview = CurvePreview()
+        v.addWidget(self.curve_preview)
 
         self.preset_desc = QtWidgets.QLabel("")
         self.preset_desc.setWordWrap(True)
@@ -209,6 +214,7 @@ class MotionManagerWidget(QtWidgets.QWidget):
     def _on_select_preset(self, current, _previous=None):
         preset = current.data(QtCore.Qt.UserRole) if current else None
         self.preset_desc.setText(preset.get("description", "") if preset else "")
+        self.curve_preview.set_preset(preset)
 
     # -- actions --------------------------------------------------------
     def on_copy(self):
